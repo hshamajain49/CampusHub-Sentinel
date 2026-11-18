@@ -27,6 +27,17 @@ Findings referenced as F-xx are in [AUDIT.md](AUDIT.md).
 | 5 | Done 2026-11-18 (this repo): signed ingestion, detection engine (15 rules), alerts, email, incidents, suspicious IPs, blocks and allowlist, security API, live alert push, secret rotation |
 | 6 | Done 2026-11-18: the dashboard (`frontend/`), 9 pages plus sign-in steps, SSE live updates, served by the API on one origin |
 | 7 | Done 2026-11-18, in the CampusHub repo (not deployed): signed event reporting, traffic counts, blocklist enforcement (F-03); `campushub_app` role and append-only `audit_logs` (F-04); Better Auth limits in Postgres (F-06) |
+| 8 | Done 2026-11-19: `security/` tooling (dependencies, secrets incl. history, SAST, passive headers, active probe, Semgrep/ZAP import, upload to Sentinel), authorization-matrix test, local-staging attack run (15/15 rules), production passive check; scan reports in Sentinel; F-17 to F-20 fixed |
+
+### Phase 8 notes and deviations
+
+- **No staging deployment exists,** so the active probe ran against a local copy configured like production (two-step
+  verification required, one trusted proxy hop, reporting to a local Sentinel). Production was only checked passively.
+- **Public repository:** CI logs and artifacts are public, so `security.yml` prints counts only (`--quiet`) and
+  uploads the full report to Sentinel. Reports never enter the CampusHub repository.
+- **Semgrep and ZAP** run only in GitHub Actions (Semgrep won't install on the local Python 3.15). Their output is
+  imported into the same report format.
+- **`traffic_spike` alerts from tests are not marked simulated:** per-minute counts carry no flag.
 
 ### Phase 7 notes and deviations
 

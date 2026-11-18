@@ -22,7 +22,7 @@
 
 **How each finding was checked.** *Verified* means a check was actually run and its output is quoted. *Code review* means the conclusion comes from reading the code; no test was run. Nothing in this report was exploited against the live site. The Critical finding was confirmed with read-only database queries and a local password-hash check, with no sign-in.
 
-**Status:** the summary table, the [Phase 2 retest](#phase-2-retest-2026-11-17) and the [Phase 7 retest](#phase-7-retest-2026-11-18) are current. The `Status` and `Retest` lines inside each finding record the Phase 1 assessment.
+**Status:** the summary table, the [Phase 2 retest](#phase-2-retest-2026-11-17) the [Phase 7 retest](#phase-7-retest-2026-11-18) and [Phase 8 validation](#phase-8-validation-2026-11-19) are current. The `Status` and `Retest` lines inside each finding record the Phase 1 assessment.
 
 ## Summary
 
@@ -44,6 +44,10 @@
 | [F-14](#f-14) | Info | `/health` publishes the build version and commit hash | Verified | Open |
 | [F-15](#f-15) | Info | Developer machine: `NODE_TLS_REJECT_UNAUTHORIZED=0` is set in the shell | Verified | Open |
 | [F-16](#f-16) | Low | New advisory GHSA-fc5q-39xc-vjpf (`picomatch` ReDoS, every version, no fix yet) in the lint and test tooling of both repos | Verified | Open: accepted until upstream ships a fix |
+| F-17 | Low | With the database down, the API answered 500 instead of 503: Better Auth wraps the pool's connection error, which the error mapper didn't unwrap (monitoring saw `server.error`, not `db.error`) | Verified (Phase 8) | **Fixed in code**: `isConnectionError()` follows `cause` and `AggregateError.errors` |
+| F-18 | Low | Admin changes made by test traffic were reported as real (`privilege.changed`, `config.changed`): a staging test would email developers and raise the admin address's risk score | Verified (Phase 8) | **Fixed in code**: `Actor.simulated` carries the flag into audit events |
+| F-19 | Low | Sentinel: real activity joining an open *simulated* alert turned it real without any email | Code review (Phase 8) | **Fixed in code**: an alert that becomes real is announced like a new one |
+| F-20 | Info | Sentinel dashboard: dialogs had no accessible name | Verified (Phase 8 browser check) | **Fixed in code** |
 
 Nothing found in these areas, by code review and existing tests (details in [What held up](#what-held-up)): IDOR on bookings and complaints, role escalation, mass assignment, SQL injection, stored XSS, CSRF, CORS, upload type spoofing, CSV injection, email HTML injection, open redirects, secrets in git history or in the frontend bundle.
 
@@ -322,3 +326,111 @@ rule with automatic blocking switched on, block it. Simulated traffic now never 
 **Not yet retested on production:** none of this is deployed. F-04 needs the owner steps in CampusHub's README
 ("Database roles"). Re-check after deployment: Render's `DATABASE_URL` user is `campushub_app`, and Sentinel's
 overview shows CampusHub's ingestion as current.
+
+---
+
+## Phase 8 validation (2026-11-19)
+
+**What "local staging" means here.** No separate staging deployment exists, so active testing ran against a local
+copy: the CampusHub API on the local dev database, configured like production where it matters (two-step
+verification required, one trusted proxy hop) and reporting to a local Sentinel. Every active request carried
+`X-Sentinel-Simulated: 1`. Production received only GET and CORS preflight requests.
+
+### Production, passive only (`security:headers`, 2026-11-18 19:36 UTC)
+
+56 pass, 0 fail across the API, the site (`campushubweb.pages.dev`) and Sentinel:
+- HTTPS everywhere; plain HTTP redirects; certificates valid for 32 more days.
+- HSTS, nosniff and Referrer-Policy present. The site CSP has `script-src 'self'` and refuses framing.
+- CORS grants nothing to a foreign origin and never allows credentials.
+- Protected endpoints refuse anonymous calls and made-up tokens. Sentinel's API and ingestion refuse unauthenticated
+  and unsigned calls, and a cross-site POST is refused (CSRF).
+- No credentials in the site bundle, no published source maps, no `/.env`. Better Auth's sign-up endpoint is off.
+- The live API runs commit `4681462` on the production database ("Your Institution").
+
+### Static (`security:scan`)
+
+- **Dependencies:** 0 known vulnerabilities in 854 packages, production and development. 450 registry signatures
+  verified. The F-16 advisory no longer appears in `npm audit`; its acceptance entry stays until its review date.
+- **Secrets:** 326 working-tree files, the built site, and all 41,805 lines ever added across 8 commits: no
+  credentials. The only hits are the local test values in `backend/.env.test` and test fixtures.
+- **Static analysis:** no eval, raw HTML, TLS bypass, CORS wildcard, open redirect, or request value in SQL. All ~30
+  SQL template interpolations were reviewed by hand: placeholders from the `Where` builder, fixed `ORDER BY` maps
+  and constant fragments. The reviews are recorded in `security/accepted.json`; any new interpolation is flagged.
+- **Not executed:**
+  - Semgrep: it doesn't install on this machine's Python 3.15. It runs in `security.yml` on GitHub, not yet
+    triggered.
+  - OWASP ZAP baseline: a manual workflow input.
+
+### Authorization matrix (`backend/tests/integration/authz-matrix.test.ts`)
+
+The test sends every one of the 91 routes in the router table as anonymous, student, faculty, department staff and
+Super Admin. **0 violations:**
+- Anonymous gets 401 everywhere except the 2 pinned public routes.
+- Roles outside a router get `403 FORBIDDEN`, and admitted roles always pass the guard.
+- The 5 deliberately narrower routes are listed with reasons: the member dashboard, and the four two-step routes
+  that are Super Admin only.
+- Better Auth's sign-up, update-user, change-email, delete-user, change-password, session-listing and
+  account-linking endpoints answer 404.
+
+The test runs in CI, so a new route is covered automatically.
+
+### Active probe (`security:probe --xff --spike 400`, local staging): 67 pass, 0 fail
+
+- **Sign-in:**
+  - spraying and brute force are refused;
+  - the per-account lock engages on the 6th try, with `Retry-After`;
+  - existing and unknown accounts get the same answer and the same timing (136 ms vs 142 ms median);
+  - forged and signed-out tokens are refused;
+  - password reset reveals nothing and refuses a foreign redirect (`INVALID_REDIRECT_URL`).
+- **Access:**
+  - anonymous, faculty and staff are refused on the admin API;
+  - a student can't read or act on another student's complaint (404, no existence leak);
+  - another department can't read it; the right one can;
+  - 22 guessed booking ids all return 404;
+  - injected role, `__proto__`, `status` and `requesterId` fields are rejected.
+- **Input:**
+  - 21 SQL / script / traversal / template payloads across 3 search endpoints: no 5xx, no leak, no filter bypass;
+  - a `pg_sleep(3)` payload returned in normal time;
+  - stored script text is served as JSON only;
+  - oversized and malformed bodies get clean 400s; encoded traversal and NUL bytes are harmless.
+- **Uploads:**
+  - rejected, with the API staying healthy: an SVG with a script, HTML posing as JPEG, a 3.6-gigapixel
+    decompression bomb, and a 6 MB file;
+  - an image with an appended PHP payload is accepted and re-encoded to WebP, with the payload gone;
+  - a photo URL without its signature is refused.
+- **Rate limits:** self-registration is refused after 5 per hour per address, with `Retry-After`.
+- **Super Admin:**
+  - the admin area is closed until two-step verification is set up;
+  - a wrong enrolment code is refused, and a new session is held at the second step;
+  - 6 wrong codes give `MFA_LOCKED`, and even the right code is refused while paused;
+  - the API can't create a Super Admin or change one;
+  - the probe's setting and role changes were reverted.
+
+### Detection coverage: all 15 Sentinel rules fired
+
+`account_under_attack`, `admin_new_ip`, `admin_probing`, `brute_force_ip`, `config_change`, `injection_probing`,
+`member_admin_api` (escalated to high), `mfa_failures`, `object_enumeration`, `password_spraying`,
+`privilege_change`, `rate_limit_abuse`, `server_health`, `suspicious_uploads`, `traffic_spike`.
+
+- **Simulated preconditions (not real traffic):**
+  - `traffic_spike` needed 20 minutes of history, seeded at 10 requests a minute, then a 400-request burst;
+  - `server_health` came from 12 `db.error` events during a deliberate 20-second stop of the local database.
+- **Side effects that must not happen:** 0 blocks created, 0 addresses scored, 0 events containing an email or
+  password.
+- **Marked simulated:** every event and alert, except `traffic_spike`. Request counts carry no simulated flag, so a
+  spike caused by a test looks real and would email. Accepted; warn the team before a staging load test.
+- **During the outage:** `/health` stayed 200 (Render keeps the instance) and `/health/ready` returned 503.
+
+### Reports
+
+The combined report (83 pass, 0 fail, 0 warn) was uploaded to the local Sentinel and checked in a real browser. The
+reports list and the detail view (Problems / All checks) work, with 0 px overflow at 390 px and 320 px.
+
+### Not covered (honest limits)
+
+- No active test of production, by design. No staging deployment exists to test the as-deployed configuration
+  (Render proxy, Neon, Cloudflare).
+- Semgrep and ZAP results are pending their first GitHub run.
+- No manual penetration test and no code-level fuzzing.
+- The probe exercises representative endpoints, not every parameter of every route. The authorization matrix covers
+  every route, but only for the guard decision.

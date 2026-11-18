@@ -1,5 +1,5 @@
 // Registers the application Sentinel monitors (or updates its name and allowed origins).
-//   npm run app:register -w @sentinel/backend -- --slug campushub --name CampusHub --origin https://campushub.pages.dev [--origin …]
+//   npm run app:register -w @sentinel/backend -- --slug campushub --name CampusHub --origin https://<your CampusHub site> [--origin …]
 // First run prints the public site key (for CampusHub's VITE_SENTINEL_SITE_KEY) and, once only, the ingestion key id
 // and secret for CampusHub's API (Phase 5). Re-running never changes keys.
 import { z } from 'zod';

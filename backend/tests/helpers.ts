@@ -18,7 +18,7 @@ export async function resetDb() {
     await c.query('begin');
     await c.query("set local sentinel.purge = 'on'");
     await c.query(
-      `truncate audit_logs, security_events, incident_notes, alert_events, security_alerts, security_incidents, notification_log,
+      `truncate audit_logs, security_events, incident_notes, scan_reports, alert_events, security_alerts, security_incidents, notification_log,
                 notification_preferences, ip_blocks, ip_allowlist, suspicious_ips, analytics_events, analytics_sessions,
                 analytics_visitors, traffic_minutes, administrator_sessions, login_throttle`,
     );

@@ -384,6 +384,19 @@ describe('simulated attacks, live push, preferences, secret rotation', () => {
     expect((await pool.query('select count(*)::int as n from notification_log where alert_id = $1', [a.id])).rows[0].n).toBe(0);
   });
 
+  it('real activity joining a simulated alert turns it real and is announced', async () => {
+    const before = mails.length;
+    await send([failedLogin('203.0.113.77', 'acct-sim')]); // same address, not simulated
+    const [a] = await alertsFor('brute_force_ip', '203.0.113.77');
+    expect(a.simulated).toBe(false);
+    const sent = await eventually(
+      async () => (await pool.query('select count(*)::int as n from notification_log where alert_id = $1', [a.id])).rows[0].n,
+      (n) => n > 0,
+    );
+    expect(sent).toBeGreaterThan(0);
+    expect(mails.length).toBeGreaterThan(before);
+  });
+
   it('pushes a new alert to an open dashboard immediately (SSE)', async () => {
     const b = browser();
     await b.post('/api/auth/login', { email: owner.email, password: owner.password });

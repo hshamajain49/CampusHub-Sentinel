@@ -6,7 +6,8 @@ import { logger } from './lib/logger.js';
 export async function runRetention(): Promise<Record<string, number> | null> {
   try {
     const { rows } = await pool.query<{ out: Record<string, number> }>('select public.sentinel_purge() as out');
-    const out = rows[0]!.out;
+    const reports = await pool.query<{ n: number }>('select public.sentinel_purge_reports() as n');
+    const out = { ...rows[0]!.out, scan_reports: reports.rows[0]!.n };
     if (Object.values(out).some((n) => n > 0)) logger.info({ purged: out }, 'retention purge');
     return out;
   } catch (err) {

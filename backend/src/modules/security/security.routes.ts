@@ -15,6 +15,7 @@ import * as alerts from './alerts.service.js';
 import * as incidents from './incidents.service.js';
 import * as ips from './ips.service.js';
 import * as overview from './overview.service.js';
+import * as reports from '../reports/reports.service.js';
 import { allRules, invalidateRules, updateRule } from './rules.js';
 
 const SEV = ['info', 'low', 'medium', 'high', 'critical'] as const;
@@ -103,6 +104,16 @@ export function securityRouter() {
 
   // ── incidents ──
   const severity = z.enum(['low', 'medium', 'high', 'critical']);
+  // ── security scan reports (uploaded by the app's tooling) ──
+  r.get('/reports', validate({ query: z.strictObject({ ...appQ, ...paging }) }), async (req, res) => {
+    res.json(await reports.listReports((await target(req.valid.query.app)).id, req.valid.query));
+  });
+  r.get('/reports/:id', validate({ params: idParam, query: z.strictObject(appQ) }), async (req, res) => {
+    const found = await reports.getReport((await target(req.valid.query.app)).id, req.valid.params.id);
+    if (!found) throw appError('NOT_FOUND', 'Report not found.');
+    res.json({ data: found });
+  });
+
   r.get('/incidents', validate({ query: z.strictObject({ ...appQ, ...paging, status: csv(incidents.INCIDENT_STATUSES) }) }), async (req, res) => {
     res.json(await incidents.listIncidents((await target(req.valid.query.app)).id, req.valid.query));
   });

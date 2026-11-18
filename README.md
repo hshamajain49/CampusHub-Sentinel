@@ -134,7 +134,7 @@ CORS. Every number comes from the API; nothing in the dashboard is mock data.
 ### Set-up
 
 ```bash
-npm run app:register -w @sentinel/backend -- --slug campushub --name CampusHub --origin https://campushub.pages.dev
+npm run app:register -w @sentinel/backend -- --slug campushub --name CampusHub --origin https://<your CampusHub site>
 npm run geoip:fetch          # DB-IP Lite: country by default; GEOIP_EDITION=city on a paid instance (~130 MB RAM)
 ```
 
@@ -175,6 +175,7 @@ Server to server only. Every request is signed with the app's ingestion secret; 
 ```
 POST /ingest/v1/events        body: { "events": [...], "traffic": [...] }   (≤ 256 KB, ≤ 500 events, ≤ 120 minutes)
 GET  /ingest/v1/blocklist     → { blocks: [{ cidr, expiresAt }] }           (the active blocks to enforce)
+POST /ingest/v1/reports       body: a security scan report (≤ 1 MB)       (CampusHub: npm run security:audit -- --upload)
 
 X-Sentinel-Key:        ik_…                                  (app:register / app:rotate-secret)
 X-Sentinel-Signature:  t=<unix seconds>,v1=<hex HMAC-SHA256(secret, "<t>.<METHOD>.<path>.<raw body>")>

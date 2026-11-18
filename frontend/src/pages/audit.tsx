@@ -2,10 +2,10 @@
 // security scan reports. The audit log is append-only in the database; nobody can edit or delete an entry here.
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileSearch } from 'lucide-react';
 import { list, qs } from '@/lib/api';
 import { dateTimeFull } from '@/lib/format';
 import { Card, Empty, Mono, PageHeader, Pagination, Pill, Segmented, Select, Spinner, Table, td } from '@/components/ui';
+import { ScanReports } from './scan-reports';
 
 interface AuditEntry {
   id: number;
@@ -53,12 +53,7 @@ export function AuditPage() {
   return (
     <>
       <PageHeader title="Security Audit Reports" subtitle="Who did what in Sentinel, and CampusHub's security scan results." />
-      <Card title="Security scan reports" subtitle="Dependency audit, secret scan, static analysis and the OWASP ZAP baseline">
-        <Empty icon={<FileSearch className="size-5" />}>
-          No scan reports have been uploaded yet. The scanning scripts arrive with the CampusHub <Mono>security/</Mono> tooling; until then the findings live in{' '}
-          <Mono>docs/security/AUDIT.md</Mono> in this repository.
-        </Empty>
-      </Card>
+      <ScanReports />
       <Card
         className="mt-3"
         title="Dashboard audit log"

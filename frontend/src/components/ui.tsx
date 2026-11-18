@@ -279,6 +279,7 @@ export function Pagination({ page, totalPages, total, onPage }: { page: number; 
 
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; wide?: boolean }) {
   const ref = React.useRef<HTMLDialogElement>(null);
+  const titleId = React.useId();
   React.useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -288,6 +289,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       onClose={onClose}
       onCancel={onClose}
       className={cn('m-auto w-[calc(100%-32px)] rounded-[14px] border border-line-strong bg-surface p-0 text-ink backdrop:bg-black/60', wide ? 'max-w-[720px]' : 'max-w-[440px]')}
@@ -295,7 +297,9 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
       {open && (
         <div className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-[15px] font-semibold">{title}</h2>
+            <h2 id={titleId} className="text-[15px] font-semibold">
+              {title}
+            </h2>
             <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
               <X />
             </Button>

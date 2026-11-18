@@ -28,6 +28,8 @@ export interface RaisedAlert {
   id: string;
   created: boolean;
   escalated: boolean;
+  /** An open simulated alert received real activity (and is now a real alert). */
+  becameReal: boolean;
   suppressed: boolean;
   severity: string;
 }
@@ -41,15 +43,15 @@ export async function raiseAlert(a: AlertInput): Promise<RaisedAlert> {
       [a.appId, a.rule.key, a.groupKey, a.rule.cooldownSeconds],
     );
     const before = (
-      await tx.query<{ id: string; severity: string }>(
-        `select id, severity from public.security_alerts
+      await tx.query<{ id: string; severity: string; simulated: boolean }>(
+        `select id, severity, simulated from public.security_alerts
           where app_id = $1 and rule_key = $2 and group_key = $3 and status in ('open', 'acknowledged') for update`,
         [a.appId, a.rule.key, a.groupKey],
       )
     ).rows[0];
-    if (!before && quiet.rowCount) return { id: quiet.rows[0].id as string, created: false, escalated: false, suppressed: true, severity: a.severity };
+    if (!before && quiet.rowCount) return { id: quiet.rows[0].id as string, created: false, escalated: false, becameReal: false, suppressed: true, severity: a.severity };
 
-    const { rows } = await tx.query<{ id: string; severity: string }>(
+    const { rows } = await tx.query<{ id: string; severity: string; simulated: boolean }>(
       `insert into public.security_alerts as al
          (app_id, rule_id, rule_key, group_key, severity, classification, title, detection_reason, occurrences, simulated)
        values ($1, $2, $3, $4, $5, $6, $7, $8, greatest($9, 1), $10)
@@ -59,7 +61,7 @@ export async function raiseAlert(a: AlertInput): Promise<RaisedAlert> {
                      severity = case when public.severity_rank(excluded.severity) > public.severity_rank(al.severity) then excluded.severity else al.severity end,
                      detection_reason = excluded.detection_reason,
                      simulated = al.simulated and excluded.simulated
-       returning id, severity`,
+       returning id, severity, simulated`,
       [a.appId, a.rule.id, a.rule.key, a.groupKey, a.severity, a.rule.classification, a.title.slice(0, 200), a.reason.slice(0, 1000), a.count, a.simulated],
     );
     const row = rows[0]!;
@@ -71,11 +73,19 @@ export async function raiseAlert(a: AlertInput): Promise<RaisedAlert> {
         [row.id, a.eventId, SAMPLE_LIMIT],
       );
     }
-    return { id: row.id, created: !before, escalated: !!before && rank(row.severity) > rank(before.severity), suppressed: false, severity: row.severity };
+    return {
+      id: row.id,
+      created: !before,
+      escalated: !!before && rank(row.severity) > rank(before.severity),
+      // Real activity joined an alert opened by test traffic: it is news, so it is announced like a new alert.
+      becameReal: !!before && before.simulated && !row.simulated,
+      suppressed: false,
+      severity: row.severity,
+    };
   });
 
-  if (out.created || out.escalated) {
-    liveHub.alert({ id: out.id, severity: out.severity, title: a.title, created: out.created, simulated: a.simulated });
+  if (out.created || out.escalated || out.becameReal) {
+    liveHub.alert({ id: out.id, severity: out.severity, title: a.title, created: out.created || out.becameReal, simulated: a.simulated });
     void notifyAlert(out.id).catch((err) => logger.error({ err, alert: out.id }, 'alert notification failed'));
   } else if (!out.suppressed) {
     liveHub.notify();
