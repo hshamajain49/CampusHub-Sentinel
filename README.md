@@ -386,3 +386,5 @@ days (evidence of open alerts and incidents is kept), audit log 2 years.
 **Lost authenticator and no recovery codes:** an owner resets it from the dashboard, or someone with database access
 runs `npm run admin:reset-mfa -w @sentinel/backend -- --email <address>`.
 "# CampusHub-Sentinel" 
+
+tnbttechnologies@gmail.com
