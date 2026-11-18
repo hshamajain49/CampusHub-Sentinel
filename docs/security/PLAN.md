@@ -28,6 +28,7 @@ Findings referenced as F-xx are in [AUDIT.md](AUDIT.md).
 | 6 | Done 2026-11-18: the dashboard (`frontend/`), 9 pages plus sign-in steps, SSE live updates, served by the API on one origin |
 | 7 | Done 2026-11-18, in the CampusHub repo (not deployed): signed event reporting, traffic counts, blocklist enforcement (F-03); `campushub_app` role and append-only `audit_logs` (F-04); Better Auth limits in Postgres (F-06) |
 | 8 | Done 2026-11-19: `security/` tooling (dependencies, secrets incl. history, SAST, passive headers, active probe, Semgrep/ZAP import, upload to Sentinel), authorization-matrix test, local-staging attack run (15/15 rules), production passive check; scan reports in Sentinel; F-17 to F-20 fixed |
+| 9 | Done 2026-11-19: runbooks `docs/DEPLOYMENT.md` in both repositories (CampusHub's public, no values); CI unblocked (PostgreSQL 18 restrict-violation code, gitleaks allowlist for test fixtures) |
 
 ### Phase 8 notes and deviations
 

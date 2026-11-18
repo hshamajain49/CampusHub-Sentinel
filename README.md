@@ -374,6 +374,9 @@ days (evidence of open alerts and incidents is kept), audit log 2 years.
 
 ## Deploy (Render)
 
+The full runbook (first-time setup order, where every secret lives, rotation, alert response, failure modes,
+free-plan limits) is **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. The short version:
+
 1. Push this repository to a **private** GitHub repository.
 2. In Render: **New → Blueprint → this repository** (`render.yaml`). Render asks for `APP_ORIGIN`, `DATABASE_URL` and
    `DATA_ENCRYPTION_KEY`.
