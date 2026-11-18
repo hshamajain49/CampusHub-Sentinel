@@ -1,0 +1,50 @@
+# Render blueprint: one web service serves the Sentinel API and (from Phase 6) its dashboard on the same origin.
+# Create it with Render → New → Blueprint → this repository. Secrets use sync: false, so Render asks for them.
+# Plan: the free plan sleeps after 15 idle minutes and shares 750 instance-hours a month with every other free
+# service in the workspace (CampusHub's API too). For dependable monitoring use "starter".
+services:
+  - type: web
+    name: campushub-sentinel
+    runtime: node
+    plan: free
+    region: singapore # same region as Neon
+    # geoip:fetch downloads DB-IP Lite (never fails the build; without it locations show as unknown)
+    buildCommand: npm ci --include=dev && npm run geoip:fetch && npm run build
+    startCommand: npm run start
+    healthCheckPath: /health
+    autoDeploy: false # CI deploys through the deploy hook after tests pass and migrations run
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '22'
+      - key: LOG_LEVEL
+        value: info
+      - key: TRUST_PROXY
+        value: '1'
+      - key: DATABASE_SSL
+        value: 'true'
+      - key: DATABASE_POOL_MAX
+        value: '5'
+      - key: SESSION_IDLE_MINUTES
+        value: '30'
+      - key: SESSION_ABSOLUTE_HOURS
+        value: '12'
+      - key: REAUTH_MINUTES
+        value: '10'
+      - key: GEOIP_EDITION # country (~8 MB RAM); "city" (~130 MB) on a paid instance
+        value: country
+      - key: REPORT_TIMEZONE # "today", daily buckets and hour-of-day charts
+        value: Asia/Kolkata
+      - key: EMAIL_TRANSPORT # brevo sends alert emails; "log" only logs them
+        value: brevo
+      - key: BREVO_API_KEY # a separate key from CampusHub's
+        sync: false
+      - key: ALERT_EMAIL_FROM # a verified Brevo sender, e.g. sentinel@your-domain
+        sync: false
+      - key: APP_ORIGIN # https://campushub-sentinel.onrender.com, or https://sentinel.<your domain>
+        sync: false
+      - key: DATABASE_URL # Neon project campushub-sentinel, DIRECT endpoint, role sentinel_app (README "Database roles")
+        sync: false
+      - key: DATA_ENCRYPTION_KEY # 32 random bytes, base64 (README "Environment")
+        sync: false

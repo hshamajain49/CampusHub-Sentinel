@@ -1,0 +1,40 @@
+{
+  "name": "campushub-sentinel",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Visitor analytics and security monitoring for CampusHub (developers only).",
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "db:local": "node scripts/local-db.mjs",
+    "db:local:stop": "node scripts/local-db.mjs stop",
+    "db:migrate": "dbmate --migrations-dir database/migrations --no-dump-schema --env-file backend/.env up",
+    "db:migrate:test": "dbmate --migrations-dir database/migrations --no-dump-schema --env-file backend/.env.test up",
+    "geoip:fetch": "node scripts/fetch-geoip.mjs",
+    "dev": "concurrently -n api,web -c green,cyan \"npm:dev -w @sentinel/backend\" \"npm:dev -w @sentinel/frontend\"",
+    "build": "npm run build -w @sentinel/frontend && npm run build -w @sentinel/backend",
+    "start": "npm run start -w @sentinel/backend",
+    "lint": "eslint .",
+    "typecheck": "tsc -p backend --noEmit && tsc -p frontend --noEmit",
+    "test": "npm run test -w @sentinel/backend && npm run test -w @sentinel/frontend",
+    "test:integration": "npm run test:integration -w @sentinel/backend"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "concurrently": "^9.2.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "dbmate": "^2.37.0",
+    "embedded-postgres": "17.11.0-beta.19",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "pg": "^8.16.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.73.0"
+  }
+}

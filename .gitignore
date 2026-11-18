@@ -1,0 +1,18 @@
+node_modules
+dist
+coverage
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# Environment files: only the documented example and the throwaway test values are committed
+.env
+.env.*
+!.env.example
+!backend/.env.test
+
+# Local PostgreSQL cluster (npm run db:local)
+.localdb
+backend/.tmp
+# DB-IP Lite database, downloaded at build time (npm run geoip:fetch)
+backend/.geoip

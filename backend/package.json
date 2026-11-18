@@ -1,0 +1,40 @@
+{
+  "name": "@sentinel/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../scripts/with-node-env.mjs development tsx watch --clear-screen=false src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "test": "node ../scripts/with-node-env.mjs test vitest run tests/unit",
+    "test:integration": "node ../scripts/with-node-env.mjs test vitest run tests/integration",
+    "admin:create": "tsx src/scripts/admin-create.ts",
+    "admin:reset-mfa": "tsx src/scripts/admin-reset-mfa.ts",
+    "app:register": "tsx src/scripts/app-register.ts",
+    "app:rotate-secret": "tsx src/scripts/app-rotate-secret.ts"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "maxmind": "5.0.8",
+    "pg": "^8.16.3",
+    "pino": "^10.1.0",
+    "pino-http": "^11.0.0",
+    "qrcode": "^1.5.4",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.5",
+    "@types/node": "^22.19.0",
+    "@types/pg": "^8.15.6",
+    "@types/qrcode": "^1.5.6",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,13 @@
+# gitleaks configuration (CI secrets-scan job). Keeps every default rule; allowlists only known non-secret VALUES.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Throwaway test values and documented placeholders"
+regexTarget = "secret"
+regexes = [
+  # backend/.env.test: base64 of "test-only-key-not-a-secret-0123456789"
+  '''^dGVzdC1vbmx5LWtleS1ub3QtYS1zZWNyZXQtMDEyMzQ1Njc4OQ==$''',
+  '''^replace-with-[a-z0-9-]+$''',
+  '''^sentinel$''',
+]

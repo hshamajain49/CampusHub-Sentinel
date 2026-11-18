@@ -1,0 +1,66 @@
+# CI: lint/typecheck → unit → integration (Postgres service) → secrets scan → gated deploy.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: sentinel, POSTGRES_PASSWORD: sentinel, POSTGRES_DB: sentinel_test }
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd "pg_isready -U sentinel -d sentinel_test" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci --include=dev
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run db:migrate:test
+      - run: npm run test:integration
+      - run: npm audit --omit=dev --audit-level=high
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+
+  deploy:
+    needs: [checks, secrets-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production # add "Required reviewers" in the repository settings for a manual approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: npm }
+      - run: npm ci --include=dev
+      # Migrations run as the database OWNER; the app itself connects as sentinel_app.
+      - name: Migrate production (forward-only)
+        run: npx dbmate --migrations-dir database/migrations --no-dump-schema up
+        env: { DATABASE_URL: '${{ secrets.SENTINEL_OWNER_DATABASE_URL }}' }
+      - name: Deploy on Render
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+        env: { RENDER_DEPLOY_HOOK_URL: '${{ secrets.SENTINEL_RENDER_DEPLOY_HOOK_URL }}' }
