@@ -65,7 +65,7 @@ describe('TOTP (RFC 6238 Appendix B, RFC 4226 Appendix D)', () => {
   });
 });
 
-describe('sign-in steps', () => {
+describe('sign-in steps (MFA_MODE=required)', () => {
   it.each([
     [{ mustChangePassword: true, totpEnabled: false }, false, 'password_change'],
     [{ mustChangePassword: false, totpEnabled: false }, false, 'mfa_enroll'],
@@ -74,7 +74,18 @@ describe('sign-in steps', () => {
     [{ mustChangePassword: true, totpEnabled: true }, true, 'password_change'],
     [{ mustChangePassword: false, totpEnabled: true }, true, 'active'],
   ])('%j, code passed: %s → %s', (admin, verified, expected) => {
-    expect(nextState(admin, verified)).toBe(expected);
+    expect(nextState(admin, verified, true)).toBe(expected);
+  });
+});
+
+describe('sign-in steps (MFA_MODE=off: password only)', () => {
+  it.each([
+    [{ mustChangePassword: true, totpEnabled: false }, 'password_change'],
+    [{ mustChangePassword: false, totpEnabled: false }, 'active'], // no authenticator setup
+    [{ mustChangePassword: false, totpEnabled: true }, 'active'], // an existing authenticator isn't asked for
+    [{ mustChangePassword: true, totpEnabled: true }, 'password_change'],
+  ])('%j → %s', (admin, expected) => {
+    expect(nextState(admin, false, false)).toBe(expected);
   });
 });
 

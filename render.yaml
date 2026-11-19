@@ -32,6 +32,8 @@ services:
         value: '12'
       - key: REAUTH_MINUTES
         value: '10'
+      - key: MFA_MODE # off for now: password-only sign-in (owner decision 2026-11-19); "required" turns codes back on
+        value: 'off'
       - key: GEOIP_EDITION # country (~8 MB RAM); "city" (~130 MB) on a paid instance
         value: country
       - key: REPORT_TIMEZONE # "today", daily buckets and hour-of-day charts

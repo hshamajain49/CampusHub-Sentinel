@@ -1,12 +1,14 @@
 // Developer sign-in. Steps, in order:
 //   1. email + password                                    → a pending session (15 min) in the first open step
-//   2. authenticator code, if one is set up                 ('mfa_verify')
-//   3. new password, if the current one is temporary        ('password_change')
-//   4. set up an authenticator, if there is none yet        ('mfa_enroll'): mandatory, there is no way around it
+//   2. authenticator code, if one is set up                 ('mfa_verify')        ┐ only with MFA_MODE=required
+//   3. new password, if the current one is temporary        ('password_change')   │
+//   4. set up an authenticator, if there is none yet        ('mfa_enroll')        ┘ (mandatory when required)
 //   → 'active': the token is replaced and the session lasts until idle/absolute expiry.
+// With MFA_MODE=off (the current default) only steps 1 and 3 exist, and sensitive actions re-confirm the password only.
 // Every outcome is written to the audit log. Wrong password and unknown email look identical (message and timing).
 import { createHash, randomBytes } from 'node:crypto';
 import QRCode from 'qrcode';
+import { config } from '../../config/env.js';
 import { pool, withTransaction } from '../../db/pool.js';
 import { appError } from '../../errors/app-error.js';
 import { decrypt, encrypt, keyedHash } from '../../lib/crypto.js';
@@ -22,7 +24,11 @@ const PENDING_SETUP_MINUTES = 15;
 const RECOVERY_CODE_COUNT = 10;
 const MFA_LOCK = { threshold: 5, baseSeconds: 300, maxSeconds: 3600 } as const;
 
-export function nextState(admin: { mustChangePassword: boolean; totpEnabled: boolean }, mfaVerified: boolean): SessionState {
+/** Whether authenticator codes are asked for (MFA_MODE). Read at call time, so tests can switch it. */
+export const mfaRequired = () => config.MFA_MODE === 'required';
+
+export function nextState(admin: { mustChangePassword: boolean; totpEnabled: boolean }, mfaVerified: boolean, required = mfaRequired()): SessionState {
+  if (!required) return admin.mustChangePassword ? 'password_change' : 'active';
   if (admin.totpEnabled && !mfaVerified) return 'mfa_verify';
   if (admin.mustChangePassword) return 'password_change';
   if (!admin.totpEnabled) return 'mfa_enroll';
@@ -222,11 +228,11 @@ export async function mfaVerify(session: SessionInfo, admin: AdminInfo, code: st
 }
 
 // ─────────────────────────── step-up, sign-out, view ───────────────────────────
-/** Confirms password + authenticator code (not a recovery code) before a sensitive action. */
-export async function reauth(session: SessionInfo, admin: AdminInfo, body: { password: string; code: string }, actor: AuditActor) {
+/** Confirms the password (+ an authenticator code, not a recovery code, when MFA is required) before a sensitive action. */
+export async function reauth(session: SessionInfo, admin: AdminInfo, body: { password: string; code?: string }, actor: AuditActor) {
   const { rows } = await pool.query<{ password_hash: string }>('select password_hash from public.administrator_accounts where id = $1', [admin.id]);
   const passwordOk = await verifyPassword(rows[0]?.password_hash, body.password);
-  const codeOk = passwordOk && (await checkCode(admin.id, body.code, { allowRecovery: false })).ok;
+  const codeOk = passwordOk && (!mfaRequired() || (!!body.code && (await checkCode(admin.id, body.code, { allowRecovery: false })).ok));
   if (!passwordOk || !codeOk) {
     await recordMfaFailure(admin.id);
     await writeAudit(pool, actor, { action: 'auth.reauth', outcome: 'failure', details: { reason: passwordOk ? 'invalid_code' : 'wrong_password' } });
@@ -250,5 +256,6 @@ export function sessionView(session: SessionInfo, admin: AdminInfo, reauthMinute
     admin: { id: admin.id, email: admin.email, displayName: admin.displayName, role: admin.role },
     expiresAt: new Date(session.expiresAt).toISOString(),
     reauthUntil: reauthUntil && reauthUntil.getTime() > Date.now() ? reauthUntil.toISOString() : null,
+    mfaRequired: mfaRequired(),
   };
 }

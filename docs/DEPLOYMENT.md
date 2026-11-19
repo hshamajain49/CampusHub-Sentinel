@@ -53,7 +53,8 @@ Losing `DATA_ENCRYPTION_KEY` makes every stored authenticator secret and ingesti
    Then switch Render's `DATABASE_URL` to `sentinel_app`. Use SQL, not the console: console-created roles join
    `neon_superuser`.
 6. **First owner:** run `admin:create` with `ENV_FILE=none` and the production `DATABASE_URL` and
-   `DATA_ENCRYPTION_KEY` in the shell. Sign in: new password, authenticator, and **save the recovery codes**.
+   `DATA_ENCRYPTION_KEY` in the shell. Sign in and set a new password. (With `MFA_MODE=required` you also set up an
+   authenticator: **save the recovery codes**.)
 7. **Register CampusHub:**
    `npm run app:register -w @sentinel/backend -- --slug campushub --name CampusHub --origin https://<CampusHub site>`.
    It prints the site key and the ingestion key id and secret (the secret is shown once).
@@ -84,10 +85,12 @@ runs fine.
 ## 5. Accounts
 
 - **Add a developer:** Settings, then Developers (owner, after re-confirming with password and code). Or use the
-  `admin:create` script. They set a password and an authenticator at first sign-in.
+  `admin:create` script. They set a password at first sign-in (and an authenticator, with `MFA_MODE=required`).
 - **Remove a developer:** deactivate them (accounts are never deleted, so the audit log stays attributable). Their
   sessions end at once.
-- **Lost authenticator:** another owner resets it from Settings. With no owner able to sign in, run
+- **Two-step verification** is **off** for now (`MFA_MODE=off`): sign-in and sensitive actions ask for the password
+  only. Set `MFA_MODE=required` on Render to turn it back on; authenticators already set up are kept.
+- **Lost authenticator** (with `MFA_MODE=required`): another owner resets it from Settings. With no owner able to sign in, run
   `npm run admin:reset-mfa -w @sentinel/backend -- --email <address>` with database access.
 - **Alert email preferences:** each developer chooses a minimum severity (default high) and quiet hours in Settings.
   Critical alerts ignore quiet hours. Simulated alerts are never emailed.

@@ -1,9 +1,10 @@
-// Sensitive actions (blocks, allowlist, rules, developers, secret rotation) need a password + authenticator code from
-// the last few minutes. `withReauth(fn)` runs fn; if the API answers REAUTH_REQUIRED it asks once, then retries.
+// Sensitive actions (blocks, allowlist, rules, developers, secret rotation) need the password (+ an authenticator code
+// when two-step verification is on) from the last few minutes. `withReauth(fn)` runs fn; if the API answers REAUTH_REQUIRED it asks once, then retries.
 import * as React from 'react';
 import { KeyRound } from 'lucide-react';
 import { ApiError, errorText, post } from '@/lib/api';
 import { Button, Field, inputCls, Modal } from '@/components/ui';
+import { useSession } from './session';
 
 type Pending = { resolve: () => void; reject: (e: unknown) => void };
 const Ctx = React.createContext<(<T>(fn: () => Promise<T>) => Promise<T>) | null>(null);
@@ -20,6 +21,7 @@ export function ReauthProvider({ children }: { children: React.ReactNode }) {
   const [code, setCode] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const needsCode = useSession().session?.mfaRequired ?? false;
 
   const ask = React.useCallback(
     () =>
@@ -50,7 +52,7 @@ export function ReauthProvider({ children }: { children: React.ReactNode }) {
     setBusy(true);
     setError(null);
     try {
-      await post('/api/auth/reauth', { password, code: code.replace(/\s+/g, '') });
+      await post('/api/auth/reauth', needsCode ? { password, code: code.replace(/\s+/g, '') } : { password });
       pending?.resolve();
       setPending(null);
     } catch (err) {
@@ -71,18 +73,22 @@ export function ReauthProvider({ children }: { children: React.ReactNode }) {
       {children}
       <Modal open={!!pending} onClose={cancel} title="Confirm it's you">
         <form onSubmit={submit} className="grid gap-3">
-          <p className="text-[13px] text-ink-2">This changes what Sentinel enforces or who can use it. Enter your password and a current authenticator code.</p>
-          <Field label="Password">
+          <p className="text-[13px] text-ink-2">
+            This changes what Sentinel enforces or who can use it. Enter your password{needsCode ? ' and a current authenticator code' : ''}.
+          </p>
+          <Field label="Password" error={needsCode ? null : error}>
             <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
           </Field>
-          <Field label="Authenticator code" error={error}>
-            <input className={`${inputCls} font-mono tracking-[0.2em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
-          </Field>
+          {needsCode && (
+            <Field label="Authenticator code" error={error}>
+              <input className={`${inputCls} font-mono tracking-[0.2em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
+            </Field>
+          )}
           <div className="mt-1 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={cancel}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" loading={busy} disabled={!password || code.replace(/\s+/g, '').length !== 6}>
+            <Button type="submit" variant="primary" loading={busy} disabled={!password || (needsCode && code.replace(/\s+/g, '').length !== 6)}>
               <KeyRound /> Confirm
             </Button>
           </div>

@@ -8,6 +8,8 @@ export interface SessionView {
   admin: { id: string; email: string; displayName: string; role: Role };
   expiresAt: string;
   reauthUntil: string | null;
+  /** Authenticator codes are asked for (server MFA_MODE=required). */
+  mfaRequired: boolean;
 }
 
 export interface Overview {

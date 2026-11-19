@@ -10,7 +10,8 @@ Super Admin, cannot sign in to it.
 
 > **Status (2026-11-18): backend and dashboard.**
 > - **Built:**
->   - the database schema, developer sign-in with a mandatory authenticator app, sessions, roles, the audit log and
+>   - the database schema, developer sign-in (password; an authenticator app when `MFA_MODE=required`), sessions,
+>     roles, the audit log and
 >     tamper resistance;
 >   - visitor analytics: the `/collect` beacon, sessions, location and the reporting API;
 >   - security monitoring: signed ingestion, the detection engine, alerts, emails, incidents, suspicious IPs, blocks
@@ -50,7 +51,8 @@ npm run admin:create -w @sentinel/backend -- --email you@college.edu --name "You
 npm run dev                      # API on :4100 + dashboard on http://localhost:5180 (Vite proxies /api)
 ```
 
-`admin:create` prints a temporary password once. At first sign-in you replace it and set up an authenticator app.
+`admin:create` prints a temporary password once. At first sign-in you replace it (and, with `MFA_MODE=required`, set
+up an authenticator app).
 
 **Choosing the local origin.** The CSRF check compares each request's `Origin` with `APP_ORIGIN`, so set it to the
 address you open in the browser:
@@ -296,10 +298,11 @@ Every change is written to the audit log.
 2. **Throttling.** Five failures for an account lock it, starting at 1 minute and doubling up to 60. Twenty failures
    from one IP lock that IP for 30 minutes. Counters are stored in Postgres as keyed hashes, never as email addresses.
 3. **Indistinguishable failures.** A wrong password and an unknown email get the same answer with the same timing.
-4. **Steps before access.** First the authenticator code (if one is set up), then the new password (if the current
-   one is temporary), then authenticator setup (if there is none yet). Until every step is done, the session lasts at
-   most 15 minutes and can only reach the step endpoints.
-5. **Authenticator codes.** Each code works once. Five wrong codes pause the step, starting at 5 minutes and doubling
+4. **Steps before access.** With `MFA_MODE=off` (**the current setting**, owner decision 2026-11-19), only a new
+   password if the current one is temporary. With `MFA_MODE=required`: first the authenticator code (if one is set
+   up), then the new password, then authenticator setup (if there is none yet). Until every step is done, the session
+   lasts at most 15 minutes and can only reach the step endpoints.
+5. **Authenticator codes** (with `MFA_MODE=required`). Each code works once. Five wrong codes pause the step, starting at 5 minutes and doubling
    up to an hour. There are 10 single-use recovery codes, stored as hashes; the secret is stored with AES-256-GCM.
 
 ### Sessions
@@ -326,7 +329,8 @@ There is no CORS at all.
 - **analyst:** views and triages.
 
 Both are checked by the server on every route. Adding a developer, deactivating one or resetting their authenticator
-also needs the password and a fresh code from the last 10 minutes (`POST /api/auth/reauth`).
+also needs a fresh confirmation from the last 10 minutes (`POST /api/auth/reauth`): the password, plus a current
+authenticator code when `MFA_MODE=required`.
 
 ### Audit log
 
@@ -365,6 +369,7 @@ days (evidence of open alerts and incidents is kept), audit log 2 years.
 | `DATABASE_URL` | Neon DIRECT endpoint, role `sentinel_app`. The `-pooler` endpoint is refused. |
 | `DATA_ENCRYPTION_KEY` | 32+ random bytes, base64. Encrypts TOTP and ingestion secrets and keys every HMAC. **Changing it** makes stored authenticator secrets unreadable, so every developer must then be reset with `admin:reset-mfa`. |
 | `TRUST_PROXY` | Number of proxy hops in front of the API (Render: `1`). |
+| `MFA_MODE` | `off` (the default for now: password-only sign-in and confirmations) or `required` (authenticator codes; existing authenticators are kept, developers without one set it up at next sign-in). |
 | `SESSION_IDLE_MINUTES`, `SESSION_ABSOLUTE_HOURS`, `REAUTH_MINUTES` | Session lifetimes; defaults 30, 12 and 10. |
 | `GEOIP_EDITION` | `country` (default, about 8 MB of RAM), `city` (about 130 MB), or `off`. |
 | `REPORT_TIMEZONE` | IANA timezone for reports. The default is `UTC`; Render uses `Asia/Kolkata`. |

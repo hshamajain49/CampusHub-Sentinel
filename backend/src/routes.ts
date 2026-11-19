@@ -68,7 +68,8 @@ function authRouter() {
     '/reauth',
     limits.mfa,
     requireSession('active'),
-    validate({ body: z.strictObject({ password: z.string().min(1).max(128), code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code') }) }),
+    // The code is needed only with MFA_MODE=required (auth.reauth checks); password-only otherwise.
+    validate({ body: z.strictObject({ password: z.string().min(1).max(128), code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code').optional() }) }),
     async (req, res) => {
       await auth.reauth(req.session!, req.admin!, req.valid.body, actorOf(req));
       res.status(204).end();

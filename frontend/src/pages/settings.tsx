@@ -145,6 +145,7 @@ interface AdminRow {
 
 function Developers() {
   const me = useAdmin();
+  const mfaOn = useSession().session?.mfaRequired ?? false;
   const qc = useQueryClient();
   const withReauth = useReauth();
   const q = useQuery({ queryKey: ['admins'], queryFn: () => api<AdminRow[]>('/api/admins') });
@@ -170,7 +171,7 @@ function Developers() {
         {!q.data ? (
           <Spinner />
         ) : (
-          <Table head={['Name', 'Role', 'Two-step', 'Last sign-in', 'State', '']}>
+          <Table head={['Name', 'Role', ...(mfaOn ? ['Two-step'] : []), 'Last sign-in', 'State', '']}>
             {q.data.map((a) => (
               <tr key={a.id}>
                 <td className={td}>
@@ -180,15 +181,17 @@ function Developers() {
                 <td className={td}>
                   <Pill>{a.role}</Pill>
                 </td>
-                <td className={td}>{a.totpEnabled ? <Pill tone="good">On</Pill> : <Pill tone="warning">Not set up</Pill>}</td>
+                {mfaOn && <td className={td}>{a.totpEnabled ? <Pill tone="good">On</Pill> : <Pill tone="warning">Not set up</Pill>}</td>}
                 <td className={`${td} text-[12px] text-ink-2`}>{a.lastLoginAt ? ago(a.lastLoginAt) : 'never'}</td>
                 <td className={td}>{a.isActive ? (a.mustChangePassword ? <Pill tone="warning">Temporary password</Pill> : <Pill tone="good">Active</Pill>) : <Pill>Deactivated</Pill>}</td>
                 <td className={`${td} whitespace-nowrap text-right`}>
                   {a.isActive && (
                     <>
-                      <Button size="sm" variant="ghost" onClick={() => act.mutate({ id: a.id, what: 'reset-mfa' })} title="Lost phone: remove their authenticator">
-                        <RotateCcw /> Reset 2FA
-                      </Button>
+                      {mfaOn && (
+                        <Button size="sm" variant="ghost" onClick={() => act.mutate({ id: a.id, what: 'reset-mfa' })} title="Lost phone: remove their authenticator">
+                          <RotateCcw /> Reset 2FA
+                        </Button>
+                      )}
                       {a.id !== me.id && (
                         <Button size="sm" variant="ghost" className="text-critical-text" onClick={() => confirm(`Deactivate ${a.email}?`) && act.mutate({ id: a.id, what: 'deactivate' })}>
                           Deactivate
@@ -202,7 +205,7 @@ function Developers() {
           </Table>
         )}
       </Card>
-      <Card title="Add a developer" subtitle="They get a temporary password, replace it at first sign-in and must set up an authenticator">
+      <Card title="Add a developer" subtitle={`They get a temporary password and replace it at first sign-in${mfaOn ? ', then set up an authenticator' : ''}`}>
         <form
           className="flex flex-wrap items-end gap-2"
           onSubmit={(e) => {

@@ -29,7 +29,7 @@
 | ID | Severity | Finding | Checked by | Status |
 |---|---|---|---|---|
 | [F-01](#f-01) | **Critical** | Live API runs on the Neon **dev** branch, where the demo Super Admin's password is published in this public repo's README | Verified | **Fixed** 2026-11-17: the live API is on the production branch (retest below). Guard (F-05) prevents a repeat. |
-| [F-02](#f-02) | High | Sign-in is throttled per IP only: no per-account limit, no lockout and no second factor, including for the Super Admin | Code review | **Fixed in code** (not deployed) |
+| [F-02](#f-02) | High | Sign-in is throttled per IP only: no per-account limit, no lockout and no second factor, including for the Super Admin | Code review | Per-account back-off: **fixed**. Two-step verification: built, but **switched off on 2026-11-19 by owner decision** (`SUPER_ADMIN_MFA=off`; Sentinel `MFA_MODE=off`). Accepted risk, see below. |
 | [F-03](#f-03) | Medium | Security events are not recorded or alerted on: failed sign-ins, 401s and rate-limit hits are invisible (OWASP A09) | Code review | **Fixed in code** (not deployed): CampusHub reports security events to Sentinel; retest below |
 | [F-04](#f-04) | Medium | The API connects to Postgres as `neondb_owner`, and `audit_logs` is not append-only | Verified | **Fixed in code** (not deployed): `campushub_app` role and append-only `audit_logs`. Needs the role's password and Render's `DATABASE_URL` switched (owner step). |
 | [F-05](#f-05) | Medium | No guard stops a production start against a database holding seeded demo accounts | Code review | **Fixed in code** (not deployed) |
@@ -48,10 +48,20 @@
 | F-18 | Low | Admin changes made by test traffic were reported as real (`privilege.changed`, `config.changed`): a staging test would email developers and raise the admin address's risk score | Verified (Phase 8) | **Fixed in code**: `Actor.simulated` carries the flag into audit events |
 | F-19 | Low | Sentinel: real activity joining an open *simulated* alert turned it real without any email | Code review (Phase 8) | **Fixed in code**: an alert that becomes real is announced like a new one |
 | F-20 | Info | Sentinel dashboard: dialogs had no accessible name | Verified (Phase 8 browser check) | **Fixed in code** |
+| F-21 | Medium | Weekly backups were not being made: `backup.yml` failed (last run 2026-11-15, "Dump and encrypt"), as did CI's first deploy (2026-11-18, "Migrate production"). Both read GitHub's `PROD_DATABASE_URL`, which appears missing or invalid. Neon's point-in-time restore was the only safety net. | Verified (Phase 9, run history) | Open: owner must set the secret, then run `backup.yml` by hand to confirm |
+| F-22 | Low | The encrypted backup is uploaded as a GitHub Actions artifact. On a public repository any signed-in GitHub user can download it, so the full database (personal data, password hashes) is protected only by `BACKUP_PASSPHRASE`. | Code review (Phase 9) | Open: use a long random passphrase (32+ characters); better, run the backup from a private repository |
 
 Nothing found in these areas, by code review and existing tests (details in [What held up](#what-held-up)): IDOR on bookings and complaints, role escalation, mass assignment, SQL injection, stored XSS, CSRF, CORS, upload type spoofing, CSV injection, email HTML injection, open redirects, secrets in git history or in the frontend bundle.
 
 ---
+
+**Owner decision, 2026-11-19: two-step verification off for now, in both apps.** CampusHub's Super Admin and
+Sentinel's developers sign in with a password only, and Sentinel's sensitive actions re-confirm the password only.
+The code stays in place: `SUPER_ADMIN_MFA=required` (CampusHub) and `MFA_MODE=required` (Sentinel) turn it back on,
+and authenticators already set up are kept. With it off, an account is protected by its password (12+ characters for
+Super Admins and developers, common passwords refused), per-account and per-address sign-in back-off, session caps
+(12 hours), and Sentinel alerting on sign-in attacks and on a Super Admin signing in from a new address. A phished or
+reused password is now enough to take over an admin account; turning two-step verification back on removes that risk.
 
 ## Findings
 
@@ -271,7 +281,7 @@ These were checked and are sound. Code review means no test was run. Some are al
 | Secrets | `.env*` is git-ignored (except `.env.example` and the throwaway `backend/.env.test`). No secret file has ever been committed (`git log --all --diff-filter=A`). CI greps the built bundle for secret patterns and runs gitleaks. Env vars are Zod-validated, and `fake` stores are refused in production. | Sound |
 | Cron endpoint | `/internal/jobs/run` requires a ≥ 32-character bearer secret, compared in constant time, and is rate-limited. | Sound |
 | Database TLS | The pool sets `rejectUnauthorized: true` and refuses Neon's `-pooler` host. | Sound |
-| Backups | Weekly `pg_dump`, AES-256 encrypted with `gpg` before upload, kept for 90 days as a GitHub artifact. | Sound; restore not yet tested |
+| Backups | Weekly `pg_dump`, AES-256 encrypted with `gpg` before upload, kept for 90 days as a GitHub artifact. | Design reviewed in Phase 1, but it was **not running** (F-21), and the artifact is downloadable by any GitHub user because the repository is public (F-22). Restore not yet tested. |
 
 ## Architecture as inspected
 

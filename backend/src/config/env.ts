@@ -39,6 +39,12 @@ const schema = z
     SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(240).default(30),
     SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(12),
     REAUTH_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
+    /**
+     * Two-step verification (authenticator codes) at sign-in and for sensitive actions. Off by default (owner decision,
+     * 2026-11-19: password only for now). 'required' turns it back on; developers who already set up an authenticator
+     * keep it, the others are asked to set one up at their next sign-in.
+     */
+    MFA_MODE: z.enum(['required', 'off']).default('off'),
     // Visitor analytics (Phase 4)
     /** DB-IP Lite edition: country (~8 MB in memory), city (~130 MB; use on a paid instance), or off. */
     GEOIP_EDITION: z.enum(['country', 'city', 'off']).default('country'),
