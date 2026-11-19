@@ -47,6 +47,8 @@ describe('collect: sessions are built on the server', () => {
     );
     expect(res.status).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBeUndefined(); // the page can't read the answer
+    // …but the browser must be allowed to receive it: same-origin here logged ERR_BLOCKED_BY_RESPONSE on every page.
+    expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
     expect(res.headers['set-cookie']).toBeUndefined();
     const [s] = await sessionsOf(visitor);
     expect(s).toMatchObject({

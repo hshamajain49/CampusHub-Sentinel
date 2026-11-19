@@ -77,7 +77,17 @@ export function createApp() {
   });
   // Browser beacons have their own per-visitor limits (a whole campus can share one IP address);
   // server-to-server ingestion has its own limits and HMAC authentication.
-  app.use('/collect', collectRouter());
+  app.use(
+    '/collect',
+    // Beacons come from the monitored site, a different origin (no-cors requests). With helmet's same-origin
+    // resource policy the browser refuses the response and logs ERR_BLOCKED_BY_RESPONSE on every page view.
+    // The response is empty, so letting other origins receive it exposes nothing.
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    collectRouter(),
+  );
   app.use('/ingest/v1', ingestRouter());
   app.use(limits.global);
 
